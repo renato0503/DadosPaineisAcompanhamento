@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Grupo Cerrado — Dashboards Interativos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root{--ink:#0f172a;--muted:#6b7280;--line:#e5e7eb;--brand:#111827;--good:#059669;--bad:#dc2626}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--ink);background:#fff}
+  .wrap{max-width:1180px;margin:0 auto;padding:24px 16px}
+  header{display:flex;align-items:center;gap:16px;margin-bottom:24px}
+  .logo{width:72px;height:72px;border:1px solid var(--line);border-radius:12px;display:grid;place-items:center;font-weight:800;background-color: var(--brand); color: #fff; font-size: 24px;}
+  .brand b{display:block;font-size:22px}
+  .brand small{color:var(--muted)}
+  .tabs{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+  .tab{border:1px solid var(--line);background:#fff;border-radius:10px;padding:8px 12px;font-weight:600;cursor:pointer;transition: all .2s ease}
+  .tab[aria-selected="true"]{background:var(--brand);color:#fff;border-color:var(--brand)}
+  h1{font-size:32px;margin:24px 0 16px 0;color:var(--brand)}
+  h2{font-size:24px;margin:30px 0 14px 0;color:var(--ink);border-bottom: 1px solid var(--line); padding-bottom: 6px;}
+  h3{font-size:18px;margin:20px 0 10px 0;color:var(--muted)}
+  .grid{display:grid;gap:16px} /* Layout base */
+  .grid.dashboard-layout{grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); /* Layout responsivo para dashboards */}
+  .card{border:1px solid var(--line);border-radius:12px;padding:14px;background:#fff;box-shadow: 0 2px 4px rgba(0,0,0,0.05);}
+  .controls{display:grid;gap:10px}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  select,input[type="date"]{border:1px solid var(--line);border-radius:10px;padding:8px 10px;font:inherit;background:#fff;width:auto; min-width: 150px;}
+  .btn{border:1px solid var(--line);background:#fff;border-radius:999px;padding:8px 14px;font-weight:600;cursor:pointer;transition: all .2s ease}
+  .btn.active{background:#111827;color:#fff;border-color:#111827}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:8px 8px;border-bottom:1px solid var(--line)}
+  th{font-size:12px;color:var(--muted);text-align:left}
+  td:nth-child(n+2){text-align:right} /* Alinha números à direita a partir da 2ª coluna */
+  .small{color:var(--muted);font-size:12px}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit, minmax(120px, 1fr));gap:8px;margin-top:6px} /* KPI cards mais flexíveis */
+  .kpi{border:1px solid var(--line);border-radius:10px;padding:10px;cursor:pointer;user-select:none;background:#f9fafb; transition: all .2s ease}
+  .kpi:hover{background:#f3f4f6}
+  .kpi .v{font-weight:800; font-size: 20px; color: var(--brand);}
+  .kpi .l{font-size:12px;color:var(--muted);display: block; margin-top: 4px;}
+
+  /* --- Configurações para os Gráficos --- */
+  .chart-container {
+      position: relative;
+      height: 200px; /* Altura padrão para gráficos */
+      width: 100%;
+      background-color: #fdfdfd; /* Fundo sutil para o container do gráfico */
+      border-radius: 8px;
+      padding: 8px;
+      box-sizing: border-box; /* Inclui padding no tamanho total */
+  }
+  /* Ajustes de altura específicos para diferentes tipos de gráficos ou layouts */
+  .chart-container.high-charts { height: 300px; }
+  .chart-container.pie-chart { height: 250px; }
+  .chart-container.bar-chart-horizontal { height: 350px; } /* Mais altura para barras horizontais */
+  .chart-container.line-goal-chart { height: 250px; } /* Altura para gráficos com meta */
+  .chart-container.mixed-chart { height: 250px; } /* Altura para gráficos mistos */
+
+
+  @media (max-width: 980px){
+    .grid{grid-template-columns:1fr}
+    .grid.dashboard-layout{grid-template-columns:1fr} /* Adapta layout de dashboard em telas menores */
+    .chart-container { height: 250px; } /* Altura padrão em mobile */
+    .chart-container.high-charts { height: 280px; }
+    .chart-container.pie-chart { height: 220px; }
+    .chart-container.bar-chart-horizontal { height: 300px; }
+    .chart-container.line-goal-chart { height: 280px; }
+    .chart-container.mixed-chart { height: 280px; }
+    header{flex-direction:column; align-items:flex-start; gap: 10px}
+    .tabs{margin-left:0; margin-top: 10px; width: 100%; justify-content: center;}
+    .tab{width: auto;}
+  }
+  canvas { display: block; } /* Evita espaços extras abaixo do canvas */
+
+  /* Estilos para o Toast */
+  .toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#111827;color:#fff;padding:10px 14px;border-radius:10px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;z-index: 1000;}
+  .toast.show{opacity:1;pointer-events:auto}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">GC</div>
+    <div class="brand">
+      <b>Grupo Cerrado</b>
+      <small>Empresa fictícia Cerrado Dados</small>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="abas">
+      <!-- Os botões de navegação agora têm data-tab correspondentes às seções -->
+      <button class="tab" role="tab" aria-selected="true" data-tab="dash_geral">Visão Geral</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="dash_vendas">Vendas</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="dash_financeiro">Financeiro</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="dash_clientes">Clientes</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="dash_operacoes">Operações</button>
+    </nav>
+  </header>
+
+  <h1 id="titulo">Visão Geral</h1>
+
+  <!-- DASHBOARD GERAL (Visão Geral) -->
+  <section id="v-dash-geral" class="view">
+    <h2>Visão Geral do Negócio</h2>
+    <div class="grid dashboard-layout">
+
+      <!-- KPIs Gerais -->
+      <div class="card">
+        <h3>Indicadores Chave Gerais</h3>
+        <div class="kpis">
+          <div class="kpi" data-tip="Receita bruta total no período"><div class="v" id="kpiTotalRevenue">—</div><div class="l">Receita Total</div></div>
+          <div class="kpi" data-tip="Lucro líquido como porcentagem da receita"><div class="v" id="kpiProfitMargin">—</div><div class="l">Margem Lucro</div></div>
+          <div class="kpi" data-tip="Número total de clientes ativos"><div class="v" id="kpiTotalCustomers">—</div><div class="l">Total Clientes</div></div>
+          <div class="kpi" data-tip="Valor médio das transações de venda"><div class="v" id="kpiAvgOrderValue">—</div><div class="l">Ticket Médio</div></div>
+          <div class="kpi" data-tip="Custo médio para adquirir um novo cliente"><div class="v" id="kpiCAC">—</div><div class="l">Custo Aquisição</div></div>
+          <div class="kpi" data-tip="Valor total que um cliente tende a gastar ao longo do tempo"><div class="v" id="kpiCLV">—</div><div class="l">Valor Lifetime</div></div>
+          <div class="kpi" data-tip="Relação entre o Valor Lifetime do Cliente e o Custo de Aquisição"><div class="v" id="kpiCLV_CAC_Ratio">—</div><div class="l">CLV:CAC Ratio</div></div>
+        </div>
+      </div>
+
+      <!-- Receita Total vs Meta -->
+      <div class="card">
+        <h3>Evolução da Receita vs. Meta Mensal</h3>
+        <div class="chart-container high-charts line-goal-chart">
+            <canvas id="chartRevenueVsTarget"></canvas>
+        </div>
+      </div>
+
+      <!-- Distribuição de Receita por Categoria -->
+      <div class="card">
+        <h3>Receita por Categoria</h3>
+        <div class="chart-container pie-chart">
+            <canvas id="chartRevenueByCategory"></canvas>
+        </div>
+      </div>
+
+      <!-- Tendência de Tráfego Web -->
+      <div class="card">
+        <h3>Tráfego Web Mensal</h3>
+        <div class="chart-container">
+            <canvas id="chartWebsiteTraffic"></canvas>
+        </div>
+      </div>
+
+      <!-- Taxa de Crescimento da Receita -->
+      <div class="card">
+        <h3>Crescimento da Receita (YoY)</h3>
+        <div class="chart-container">
+            <canvas id="chartRevenueGrowthYOY"></canvas>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- DASHBOARD DE VENDAS -->
+  <section id="v-dash-vendas" class="view" hidden>
+    <h2>Dashboard de Vendas</h2>
+    <div class="grid dashboard-layout">
+
+      <!-- Vendas por Região -->
+      <div class="card">
+        <h3>Vendas por Região</h3>
+        <div class="chart-container bar-chart-horizontal">
+            <canvas id="chartSalesByRegion"></canvas>
+        </div>
+      </div>
+
+      <!-- Top Produtos Vendidos -->
+      <div class="card">
+        <h3>Top 5 Produtos/Serviços Mais Vendidos</h3>
+        <div class="chart-container bar-chart-horizontal">
+            <canvas id="chartTopProducts"></canvas>
+        </div>
+      </div>
+
+      <!-- Taxa de Conversão de Leads -->
+      <div class="card">
+        <h3>Taxa de Conversão de Leads Mensal</h3>
+        <div class="chart-container line-goal-chart">
+            <canvas id="chartLeadConversionRate"></canvas>
+        </div>
+        <div class="kpis" style="grid-template-columns: 1fr;">
+            <div class="kpi" data-tip="Média da taxa de conversão de leads no período"><div class="v" id="kpiAvgLeadConversionRate">—</div><div class="l">Média Conversão</div></div>
+        </div>
+      </div>
+
+       <!-- Ciclo Médio de Vendas -->
+      <div class="card">
+        <h3>Ciclo Médio de Vendas (Dias)</h3>
+        <div class="chart-container">
+            <canvas id="chartSalesCycle"></canvas>
+        </div>
+        <div class="kpis" style="grid-template-columns: 1fr;">
+            <div class="kpi" data-tip="Duração média em dias para fechar uma venda"><div class="v" id="kpiAvgSalesCycle">—</div><div class="l">Média Ciclo</div></div>
+        </div>
+      </div>
+
+      <!-- Valor Médio do Negócio (Deal Size) -->
+      <div class="card">
+        <h3>Evolução do Tamanho Médio do Negócio</h3>
+        <div class="chart-container">
+            <canvas id="chartAvgDealSize"></canvas>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- DASHBOARD FINANCEIRO -->
+  <section id="v-dash-financeiro" class="view" hidden>
+    <h2>Dashboard Financeiro</h2>
+    <div class="grid dashboard-layout">
+
+      <!-- Margem de Lucro Mensal (Bruta e Operacional) -->
+      <div class="card">
+        <h3>Margens de Lucro Mensais</h3>
+        <div class="chart-container high-charts">
+            <canvas id="chartProfitMargins"></canvas>
+        </div>
+      </div>
+
+      <!-- Despesas por Departamento -->
+      <div class="card">
+        <h3>Despesas por Departamento</h3>
+        <div class="chart-container pie-chart">
+            <canvas id="chartExpensesByCategory"></canvas>
+        </div>
+      </div>
+
+      <!-- Fluxo de Caixa -->
+      <div class="card">
+        <h3>Fluxo de Caixa Mensal</h3>
+        <div class="chart-container high-charts">
+            <canvas id="chartCashFlow"></canvas>
+        </div>
+      </div>
+
+      <!-- Burn Rate e Runway -->
+      <div class="card">
+        <h3>Burn Rate e Runway</h3>
+        <div class="kpis">
+            <div class="kpi" data-tip="Gasto líquido mensal da empresa"><div class="v" id="kpiMonthlyBurn">—</div><div class="l">Burn Rate Mensal</div></div>
+            <div class="kpi" data-tip="Tempo estimado que a empresa pode operar com o caixa atual"><div class="v" id="kpiRunwayMonths">—</div><div class="l">Runway (Meses)</div></div>
+        </div>
+        <p class="small" style="margin-top: 10px;">O Burn Rate é o gasto líquido mensal, e o Runway indica quantos meses a empresa pode operar com o caixa atual.</p>
+      </div>
+
+       <!-- Dias de Contas a Receber (DSO) -->
+      <div class="card">
+        <h3>Dias de Contas a Receber (DSO)</h3>
+        <div class="chart-container">
+            <canvas id="chartDSO"></canvas>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- DASHBOARD DE CLIENTES -->
+  <section id="v-dash-clientes" class="view" hidden>
+    <h2>Dashboard de Clientes</h2>
+    <div class="grid dashboard-layout">
+
+      <!-- Satisfação do Cliente (CSAT) e NPS -->
+      <div class="card">
+        <h3>Satisfação e NPS</h3>
+        <div class="chart-container line-goal-chart">
+            <canvas id="chartCSAT"></canvas>
+        </div>
+        <div class="kpis" style="grid-template-columns: 1fr;">
+            <div class="kpi" data-tip="Média da pontuação CSAT no período"><div class="v" id="kpiAvgCSAT">—</div><div class="l">Média CSAT</div></div>
+        </div>
+        <div class="chart-container" style="margin-top: 12px;">
+            <canvas id="chartNPS"></canvas>
+        </div>
+         <div class="kpis" style="grid-template-columns: 1fr;">
+            <div class="kpi" data-tip="Média da pontuação NPS no período"><div class="v" id="kpiAvgNPS">—</div><div class="l">Média NPS</div></div>
+        </div>
+      </div>
+
+      <!-- Aquisição vs. Retenção -->
+      <div class="card">
+        <h3>Novos Clientes vs. Retenção Mensal</h3>
+        <div class="chart-container mixed-chart">
+            <canvas id="chartAcquisitionRetention"></canvas>
+        </div>
+      </div>
+
+      <!-- Taxa de Churn e Retenção -->
+      <div class="card">
+        <h3>Taxa de Churn e Retenção</h3>
+        <div class="chart-container">
+            <canvas id="chartChurnRetention"></canvas>
+        </div>
+        <div class="kpis" style="grid-template-columns: 1fr;">
+             <div class="kpi" data-tip="Percentual de clientes perdidos no período"><div class="v" id="kpiChurnRate">—</div><div class="l">Taxa Churn</div></div>
+             <div class="kpi" data-tip="Percentual de clientes que permaneceram no período"><div class="v" id="kpiRetentionRate">—</div><div class="l">Taxa Retenção</div></div>
+        </div>
+      </div>
+
+      <!-- Distribuição de Clientes por Faixa de Gasto -->
+      <div class="card">
+        <h3>Clientes por Faixa de Gasto</h3>
+        <div class="chart-container pie-chart">
+            <canvas id="chartCustomerSpendingRange"></canvas>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- DASHBOARD DE OPERAÇÕES -->
+  <section id="v-dash-operacoes" class="view" hidden>
+    <h2>Dashboard de Operações</h2>
+    <div class="grid dashboard-layout">
+
+      <!-- Eficiência e Utilização -->
+      <div class="card">
+        <h3>Eficiência e Utilização</h3>
+        <div class="chart-container line-goal-chart">
+            <canvas id="chartProductionEfficiency"></canvas>
+        </div>
+         <div class="kpis" style="grid-template-columns: 1fr;">
+            <div class="kpi" data-tip="Percentual de capacidade produtiva utilizada"><div class="v" id="kpiCapacityUtilization">—</div><div class="l">Util. Capacidade</div></div>
+        </div>
+      </div>
+
+      <!-- Taxa de Entrega no Prazo e Tempo de Ciclo -->
+      <div class="card">
+        <h3>Entrega no Prazo e Ciclo</h3>
+        <div class="chart-container">
+            <canvas id="chartOnTimeDelivery"></canvas>
+        </div>
+         <div class="chart-container" style="margin-top: 12px;">
+            <canvas id="chartOrderCycleTime"></canvas>
+        </div>
+        <div class="kpis" style="grid-template-columns: 1fr;">
+             <div class="kpi" data-tip="Tempo médio para processar e entregar um pedido"><div class="v" id="kpiAvgOrderCycleTime">—</div><div class="l">Ciclo Médio Pedido</div></div>
+        </div>
+      </div>
+
+      <!-- Rotatividade de Estoque e Taxa de Defeitos -->
+      <div class="card">
+        <h3>Estoque e Qualidade</h3>
+        <div class="chart-container">
+            <canvas id="chartInventoryTurnover"></canvas>
+        </div>
+        <div class="chart-container" style="margin-top: 12px;">
+            <canvas id="chartDefectRate"></canvas>
+        </div>
+         <div class="kpis" style="grid-template-columns: 1fr;">
+             <div class="kpi" data-tip="Percentual de produtos com defeito nas entregas/produção"><div class="v" id="kpiDefectRate">—</div><div class="l">Taxa Defeitos</div></div>
+        </div>
+      </div>
+
+      <!-- Suporte ao Cliente (Tempo de Resolução) -->
+      <div class="card">
+        <h3>Suporte ao Cliente</h3>
+        <div class="chart-container">
+            <canvas id="chartSupportResolutionTime"></canvas>
+        </div>
+        <div class="kpis" style="grid-template-columns: 1fr;">
+             <div class="kpi" data-tip="Tempo médio para resolver um ticket de suporte"><div class="v" id="kpiAvgResolutionTime">—</div><div class="l">Tempo Médio Resolução</div></div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+</div>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<!-- Inclui a biblioteca Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
+<!-- Inclui plugins úteis -->
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0"></script> <!-- Para melhor manuseio de datas em eixos -->
+<script src="https://cdn.jsdelivr.net/npm/date-fns@2.30.0/locale/pt/index.js"></script> <!-- Locale pt-BR para date-fns -->
+
+<script>
+// =========================================================================
+// Código JavaScript principal para funcionalidade
+// =========================================================================
+document.addEventListener('DOMContentLoaded', () => {
+  // --- Funções de Formatação e Utilitários ---
+  const BRL = n => n.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  const num = n => n.toLocaleString('pt-BR');
+  const pct = n => (n*100).toFixed(2).replace('.',',')+'%';
+  function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');clearTimeout(window._t);window._t=setTimeout(()=>el.classList.remove('show'),2200)}
+  document.querySelectorAll('.kpi').forEach(k=>k.addEventListener('click',()=>toast(k.dataset.tip || k.querySelector('.l').textContent)));
+
+  // --- Geração de Dados Fictícios ---
+  const N_MONTHS_LONG = 24; // Dados para 24 meses para gráficos de tendência
+  const N_MONTHS_SHORT = 12; // Dados para 12 meses para dashboards mais curtos
+
+  // Gera datas para N_MONTHS_LONG meses a partir de 2023-01-01
+  const mesesLong = Array.from({length:N_MONTHS_LONG},(_,i)=>{const d=new Date(2023,0,1);d.setMonth(d.getMonth()+i);return d});
+  const labelsMesLong = mesesLong.map(d=>d.toLocaleDateString('pt-BR',{month:'short',year:'numeric'}));
+
+  // Gera datas para N_MONTHS_SHORT meses a partir de 2024-01-01
+  const mesesShort = Array.from({length:N_MONTHS_SHORT},(_,i)=>{const d=new Date(2024,0,1);d.setMonth(d.getMonth()+i);return d});
+  const labelsMesShort = mesesShort.map(d=>d.toLocaleDateString('pt-BR',{month:'short',year:'numeric'}));
+
+  // Dados para KPIs gerais
+  const totalRevenue = 150e6; // R$ 150 milhões
+  const profitMargin = 0.18; // 18%
+  const totalCustomers = 5200;
+  const avgOrderValue = 1500; // R$ 1500
+  const cac = 550; // R$ 550
+  const clv = 5500; // R$ 5500
+  const clvCacRatio = clv / cac; // Relação CLV:CAC
+
+  // Dados para Vendas
+  const salesByRegion = [['Norte', 40e6], ['Sul', 55e6], ['Leste', 35e6], ['Oeste', 20e6]];
+  const topProducts = [['Produto A', 60e6], ['Produto B', 45e6], ['Serviço X', 30e6], ['Produto C', 25e6], ['Serviço Y', 15e6]];
+  const conversionRate = mesesShort.map((_,i) => 0.03 + Math.sin(i/2)*0.01 + (i>6?0.005:0)); // Taxa de conversão mensal (3% + variação)
+  const avgLeadConversionRate = conversionRate.reduce((a,b)=>a+b,0)/conversionRate.length;
+  const salesCycle = mesesShort.map((_,i) => 45 + Math.cos(i/3)*10 + (i>8?-5:0)); // Ciclo de vendas em dias
+  const avgSalesCycle = salesCycle.reduce((a,b)=>a+b,0)/salesCycle.length;
+  const avgDealSize = mesesShort.map((_,i) => 1200 + Math.sin(i/1.5)*300 + (i>4?-150:0)); // Tamanho médio do negócio
+
+  // Dados para Financeiro
+  const profitMarginMonthly = mesesLong.map((_,i) => 0.15 + Math.sin(i/3)*0.05 + (i/N_MONTHS_LONG*0.02)); // Margem mensal
+  const expensesByCategory = [['Marketing', 25e6], ['Pessoal', 50e6], ['Operacional', 30e6], ['Infraestrutura', 15e6]];
+  const cashFlow = mesesLong.map((_,i) => (10 + Math.sin(i/2)*3 + (i>12?2:0) - (i/N_MONTHS_LONG*5)) * 1e6); // Fluxo de caixa mensal (em R$)
+  const burnRateMonthly = mesesLong.map((_,i) => (8 + Math.cos(i/3)*2 + (i>15?1:0)) * 1e6); // Gasto mensal em R$
+  const avgMonthlyBurn = burnRateMonthly.reduce((a,b)=>a+b,0)/burnRateMonthly.length;
+  const dsoValues = mesesLong.map((_,i) => 40 + Math.sin(i/2.5)*5 + (i>10?-3:0)); // Dias de Contas a Receber
+
+  // Dados para Clientes
+  const csatScores = mesesShort.map((_,i) => 80 + Math.sin(i/2.5)*5 + (i>7?-3:0)); // CSAT em %
+  const avgCSAT = csatScores.reduce((a,b)=>a+b,0)/csatScores.length;
+  const npsScores = mesesShort.map((_,i) => 40 + Math.sin(i/3)*10 + (i>5?5:0)); // NPS
+  const avgNPS = npsScores.reduce((a,b)=>a+b,0)/npsScores.length;
+  const acquisitionRetention = {
+      new: mesesShort.map((_,i) => 100 + Math.sin(i/1.5)*20 + (i>5?30:0)), // Novos clientes
+      retained: mesesShort.map((_,i) => 200 + Math.cos(i/2)*30 + (i>7?-40:0)) // Clientes retidos
+  };
+  const customerSpendingRange = [['0-R$500', 1500], ['R$501-R$2000', 2500], ['R$2001-R$10000', 1000], ['Acima de R$10000', 200]];
+  const churnRate = mesesShort.map((_,i) => 0.02 + Math.sin(i/3)*0.01 - (i/N_MONTHS_SHORT*0.005)); // Taxa de churn mensal
+  const retentionRate = mesesShort.map((_,i) => 1 - churnRate[i]); // Taxa de retenção
+  const avgChurnRate = churnRate.reduce((a,b)=>a+b,0)/churnRate.length;
+  const avgRetentionRate = retentionRate.reduce((a,b)=>a+b,0)/retentionRate.length;
+
+  // Dados para Operações
+  const productionEfficiency = mesesLong.map((_,i) => 85 + Math.sin(i/2.5)*5 + (i/N_MONTHS_LONG*10)); // %
+  const capacityUtilization = mesesLong.map((_,i) => 70 + Math.cos(i/3)*10 + (i/N_MONTHS_LONG*5)); // %
+  const onTimeDelivery = mesesLong.map((_,i) => 90 + Math.cos(i/3)*4 + (i>10?-5:0)); // %
+  const orderCycleTime = mesesLong.map((_,i) => 5 + Math.sin(i/2.5)*1.5 + (i/N_MONTHS_LONG*-0.2)); // Dias
+  const avgOrderCycleTime = orderCycleTime.reduce((a,b)=>a+b,0)/orderCycleTime.length;
+  const inventoryTurnover = mesesLong.map((_,i) => 8 + Math.sin(i/4)*2 - (i/N_MONTHS_LONG*1)); // Vezes/Ano
+  const defectRate = mesesLong.map((_,i) => 1.5 + Math.cos(i/3)*0.8 + (i>18?-0.5:0)); // %
+  const avgDefectRate = defectRate.reduce((a,b)=>a+b,0)/defectRate.length;
+  const supportResolutionTime = mesesLong.map((_,i) => 48 - Math.sin(i/2)*8 - (i/N_MONTHS_LONG*2)); // Horas
+  const avgResolutionTime = supportResolutionTime.reduce((a,b)=>a+b,0)/supportResolutionTime.length;
+
+  // --- Função Genérica para Criar Gráficos ---
+  if (!window.myCharts) window.myCharts = {}; // Objeto para gerenciar instâncias de gráficos
+
+  function createChart(canvasId, chartType, chartData, chartOptions, chartContainerClass = 'chart-container') {
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) {
+      console.error(`Elemento canvas com id '${canvasId}' não encontrado! Verifique se o ID está correto e se o elemento existe no HTML.`);
+      return null;
+    }
+
+    // Destroi gráfico anterior se existir para evitar sobreposição/memory leaks
+    if (window.myCharts[canvasId]) {
+        window.myCharts[canvasId].destroy();
+    }
+
+    try {
+        const chartInstance = new Chart(ctx, {
+            type: chartType,
+            data: chartData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                ...chartOptions
+            }
+        });
+        window.myCharts[canvasId] = chartInstance; // Guarda a instância do gráfico
+
+        // Aplica a classe CSS específica ao container do gráfico para ajustar altura/estilo
+        const container = ctx.closest('.chart-container');
+        if (container) {
+            container.classList.remove('chart-container'); // Remove classe genérica
+            container.classList.add(chartContainerClass); // Adiciona classe específica
+        } else {
+            console.warn(`Container '.chart-container' não encontrado para o canvas '${canvasId}'. Verifique a estrutura HTML.`);
+        }
+        return chartInstance;
+    } catch (error) {
+        console.error(`Erro ao criar o gráfico '${canvasId}':`, error);
+        return null;
+    }
+  }
+
+  // --- Renderização dos Gráficos ---
+
+  // ================== DASHBOARD GERAL ==================
+  // KPIs Gerais
+  document.getElementById('kpiTotalRevenue').textContent = BRL(totalRevenue);
+  document.getElementById('kpiProfitMargin').textContent = pct(profitMargin);
+  document.getElementById('kpiTotalCustomers').textContent = num(totalCustomers);
+  document.getElementById('kpiAvgOrderValue').textContent = BRL(avgOrderValue);
+  document.getElementById('kpiCAC').textContent = BRL(cac);
+  document.getElementById('kpiCLV').textContent = BRL(clv);
+  document.getElementById('kpiCLV_CAC_Ratio').textContent = clvCacRatio.toFixed(1);
+
+  // Receita Total vs Meta Mensal
+  const revenueTargetData = {
+    labels: labelsMesShort,
+    datasets: [
+      {
+        type: 'line', label: 'Meta Mensal', data: mesesShort.map((_,i) => (10 + i*0.5 + Math.sin(i/1.5)*2) * 1e6), // Meta fictícia
+        borderColor: 'var(--muted)', borderDash: [6, 6], tension: 0.2, pointRadius: 0, fill: false
+      },
+      {
+        type: 'line', label: 'Receita Realizada', data: mesesShort.map((_,i) => (10 + Math.sin(i/2)*2 + (i>5?1:0)) * 1e6), // Dados fictícios
+        borderColor: 'var(--brand)', tension: 0.3, pointRadius: 3, borderWidth: 2, fill: false
+      }
+    ]
+  };
+  createChart('chartRevenueVsTarget', 'line', revenueTargetData, { plugins: { legend: { position: 'top' } }, scales: { y: { ticks: { callback: v => `R$ ${(v/1e6).toFixed(0)} Mi` } } } }, 'chart-container high-charts line-goal-chart');
+
+  // Receita por Categoria
+  const revenueByCategoryData = {
+    labels: salesByRegion.map(r => r[0]), // Usando regiões como categorias aqui
+    datasets: [{ label: 'Valor (Milhões R$)', data: salesByRegion.map(r => r[1]/1e6), backgroundColor: ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728'] }]
+  };
+  createChart('chartRevenueByCategory', 'pie', revenueByCategoryData, { plugins: { legend: { position: 'right' } }, tooltip: { callbacks: { label: c => `${c.label}: ${BRL(c.raw * 1e6)}` } } }, 'chart-container pie-chart');
+
+  // Tráfego Web Mensal
+  const websiteTrafficData = {
+    labels: labelsMesShort,
+    datasets: [{ label: 'Visitantes Únicos', data: mesesShort.map((_,i) => 5000 + Math.sin(i/1.5)*1500 + (i>6?1000:0)), borderColor: 'var(--brand)', tension: 0.3, borderWidth: 2 }]
+  };
+  createChart('chartWebsiteTraffic', 'line', websiteTrafficData, { plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: v => num(v) } } } });
+
+  // Taxa de Crescimento da Receita (YoY)
+  const revenueGrowthYOYData = {
+    labels: labelsMesShort.slice(1), // Começa do segundo mês para calcular YoY
+    datasets: [{
+      label: 'Crescimento YoY (%)',
+      data: mesesShort.slice(1).map((_, i) => {
+        // Simula crescimento YoY baseado nos últimos 12 meses
+        const currentMonthRevenue = (10 + Math.sin(i/2)*2 + (i>5?1:0)) * 1e6; // Receita do mês atual (dados fictícios)
+        const prevYearMonthRevenue = (10 + Math.sin((i-12)/2)*2 + (i-12>5?1:0)) * 1e6; // Receita do mesmo mês no ano anterior
+        if (prevYearMonthRevenue === 0) return 0; // Evita divisão por zero
+        return ((currentMonthRevenue - prevYearMonthRevenue) / prevYearMonthRevenue) * 100;
+      }),
+      backgroundColor: 'var(--good)', borderColor: 'var(--good)', tension: 0.3, borderWidth: 2, fill: false
+    }]
+  };
+  createChart('chartRevenueGrowthYOY', 'bar', revenueGrowthYOYData, { plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: v => `${v.toFixed(1)}%` } } } });
+
+
+  // ================== DASHBOARD DE VENDAS ==================
+  // Vendas por Região (Gráfico de Barras Horizontal)
+  const salesByRegionData = {
+    labels: salesByRegion.map(r => r[0]),
+    datasets: [{ label: 'Vendas (Milhões R$)', data: salesByRegion.map(r => r[1]/1e6), backgroundColor: ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728'] }]
+  };
+  createChart('chartSalesByRegion', 'bar', salesByRegionData, { indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { ticks: { callback: v => `R$ ${num(v)} Mi` } } } }, 'chart-container bar-chart-horizontal');
+
+  // Top Produtos Vendidos
+  const topProductsData = {
+    labels: topProducts.map(p => p[0]),
+    datasets: [{ label: 'Vendas (Milhões R$)', data: topProducts.map(p => p[1]/1e6), backgroundColor: ['#aec7e8', '#ffbb78', '#98df8a', '#ff9896', '#c5b0d5'] }]
+  };
+  createChart('chartTopProducts', 'bar', topProductsData, { indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { ticks: { callback: v => `R$ ${num(v)} Mi` } } } }, 'chart-container bar-chart-horizontal');
+
+  // Taxa de Conversão de Leads Mensal
+  const leadConversionRateData = {
+    labels: labelsMesShort,
+    datasets: [
+      { type: 'line', label: 'Taxa de Conversão', data: conversionRate.map(r => r*100), borderColor: 'var(--good)', tension: 0.3, borderWidth: 2, fill: false, pointRadius: 3 },
+      { type: 'bar', label: 'Meta Mínima (ex: 3%)', data: mesesShort.map(() => 3), backgroundColor: 'rgba(5, 150, 105, 0.2)', borderColor: 'var(--good)', borderWidth: 1, fill: false } // Barra representando a meta
+    ]
+  };
+  document.getElementById('kpiAvgLeadConversionRate').textContent = pct(avgLeadConversionRate);
+  createChart('chartLeadConversionRate', 'line', leadConversionRateData, { plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: v => `${v.toFixed(1)}%` } } } }, 'chart-container line-goal-chart');
+
+  // Ciclo Médio de Vendas
+  const salesCycleData = {
+    labels: labelsMesShort,
+    datasets: [{ label: 'Dias', data: salesCycle, borderColor: 'var(--brand)', tension: 0.3, borderWidth: 2 }]
+  };
+  document.getElementById('kpiAvgSalesCycle').textContent = `${Math.round(avgSalesCycle)} dias`;
+  createChart('chartSalesCycle', 'line', salesCycleData, { plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: v => `${v} dias` } } } });
+
+  // Evolução do Tamanho Médio do Negócio (Deal Size)
+  const avgDealSizeData = {
+      labels: labelsMesShort,
+      datasets: [{ label: 'Valor Médio (R$)', data: avgDealSize, borderColor: '#ff7f0e', tension: 0.3, borderWidth: 2 }]
+  };
+  createChart('chartAvgDealSize', 'line', avgDealSizeData, { plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: v => BRL(v) } } } });
+
+  // ================== DASHBOARD FINANCEIRO ==================
+  // Margens de Lucro Mensais (Bruta e Operacional)
+  const profitMarginsData = {
+    labels: labelsMesLong,
+    datasets: [
+        { label: 'Margem Bruta (%)', data: profitMarginMonthly.map(r => r * 100), borderColor: 'var(--good)', tension: 0.3, borderWidth: 2, fill: false },
+        { label: 'Margem Operacional (%)', data: profitMarginMonthly.map(r => r * 0.85 * 100), borderColor: '#1f77b4', tension: 0.3, borderWidth: 2, fill: false } // Simulando margem operacional menor
+    ]
+  };
+  createChart('chartProfitMargins', 'line', profitMarginsData, { plugins: { legend: { position: 'top' } }, scales: { y: { ticks: { callback: v => `${v.toFixed(1)}%` } } } }, 'chart-container high-charts');
+
+  // Despesas por Departamento
+  const expensesData = {
+    labels: expensesByCategory.map(e => e[0]),
+    datasets: [{ label: 'Valor (Milhões R$)', data: expensesByCategory.map(e => e[1]/1e6), backgroundColor: ['#ff7f0e', '#2ca02c', '#d62728', '#9467bd'] }]
+  };
+  createChart('chartExpensesByCategory', 'pie', expensesData, { plugins: { legend: { position: 'right' } }, tooltip: { callbacks: { label: c => `${c.label}: ${BRL(c.raw * 1e6)}` } } }, 'chart-container pie-chart');
+
+  // Fluxo de Caixa
+  const cashFlowData = {
+    labels: labelsMesLong,
+    datasets: [{ label: 'Fluxo de Caixa (Milhões R$)', data: cashFlow.map(v => v/1e6), borderColor: '#17becf', tension: 0.3, borderWidth: 2, fill: false }]
+  };
+  createChart('chartCashFlow', 'line', cashFlowData, { plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: v => `R$ ${(v).toFixed(0)} Mi` } } } }, 'chart-container high-charts');
+
+  // Burn Rate e Runway
+  const runwayMonths = totalRevenue / avgMonthlyBurn; // Simples cálculo de runway
+  document.getElementById('kpiMonthlyBurn').textContent = BRL(avgMonthlyBurn);
+  document.getElementById('kpiRunwayMonths').textContent = isNaN(runwayMonths) ? '—' : `${runwayMonths.toFixed(1)} meses`;
+
+  // Dias de Contas a Receber (DSO)
+  const dsoData = {
+    labels: labelsMesLong,
+    datasets: [{ label: 'Dias', data: dsoValues, borderColor: '#9467bd', tension: 0.3, borderWidth: 2 }]
+  };
+  createChart('chartDSO', 'line', dsoData, { plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: v => `${v.toFixed(0)} dias` } } } });
+
+  // ================== DASHBOARD DE CLIENTES ==================
+  // CSAT e NPS
+  const csatData = {
+    labels: labelsMesShort,
+    datasets: [{ label: 'CSAT (%)', data: csatScores, borderColor: 'var(--good)', tension: 0.3, borderWidth: 2, fill: false }]
+  };
+  document.getElementById('kpiAvgCSAT').textContent = `${avgCSAT.toFixed(1)}%`;
+  createChart('chartCSAT', 'line', csatData, { plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: v => `${v.toFixed(0)}%` } } } }, 'chart-container line-goal-chart');
+
+  const npsData = {
+    labels: labelsMesShort,
+    datasets: [{ label: 'NPS', data: npsScores, borderColor: '#1f77b4', tension: 0.3, borderWidth: 2, fill: false }]
+  };
+  document.getElementById('kpiAvgNPS').textContent = `${avgNPS.toFixed(0)}`;
+  createChart('chartNPS', 'line', npsData, { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: false, ticks: { callback: v => `${v}` } } } });
+
+  // Aquisição vs. Retenção
+  const acqRetData = {
+    labels: labelsMesShort,
+    datasets: [
+      { type: 'line', label: 'Novos Clientes', data: acquisitionRetention.new, borderColor: 'var(--brand)', tension: 0.3, borderWidth: 2, fill: false, pointRadius: 3 },
+      { type: 'bar', label: 'Clientes Retidos', data: acquisitionRetention.retained, backgroundColor: 'rgba(255, 127, 14, 0.6)', borderColor: 'var(--brand)', borderWidth: 1 }
+    ]
+  };
+  createChart('chartAcquisitionRetention', 'line', acqRetData, { plugins: { legend: { position: 'top' } }, scales: { y: { ticks: { callback: v => num(v) } } } }, 'chart-container mixed-chart');
+
+  // Taxa de Churn e Retenção
+  const churnRetentionData = {
+    labels: labelsMesShort,
+    datasets: [
+      { type: 'line', label: 'Taxa de Churn (%)', data: churnRate.map(r=>r*100), borderColor: 'var(--bad)', tension: 0.3, borderWidth: 2, fill: false, pointRadius: 3 },
+      { type: 'line', label: 'Taxa de Retenção (%)', data: retentionRate.map(r=>r*100), borderColor: 'var(--good)', tension: 0.3, borderWidth: 2, fill: false, pointRadius: 3 }
+    ]
+  };
+  document.getElementById('kpiChurnRate').textContent = pct(avgChurnRate);
+  document.getElementById('kpiRetentionRate').textContent = pct(avgRetentionRate);
+  createChart('chartChurnRetention', 'line', churnRetentionData, { plugins: { legend: { position: 'top' } }, scales: { y: { ticks: { callback: v => `${v.toFixed(1)}%` } } } });
+
+  // Clientes por Faixa de Gasto
+  const spendingRangeData = {
+    labels: customerSpendingRange.map(r => r[0]),
+    datasets: [{ label: 'Número de Clientes', data: customerSpendingRange.map(r => r[1]), backgroundColor: ['#ff7f0e', '#2ca02c', '#d62728', '#9467bd'] }]
+  };
+  createChart('chartCustomerSpendingRange', 'pie', spendingRangeData, { plugins: { legend: { position: 'right' } }, tooltip: { callbacks: { label: c => `${c.label}: ${num(c.raw)} clientes` } } }, 'chart-container pie-chart');
+
+  // ================== DASHBOARD DE OPERAÇÕES ==================
+  // Eficiência e Utilização
+  const prodEffData = {
+    labels: labelsMesLong,
+    datasets: [
+      { label: 'Eficiência Produção (%)', data: productionEfficiency, borderColor: 'var(--good)', tension: 0.3, borderWidth: 2, fill: false },
+      { label: 'Utilização Capacidade (%)', data: capacityUtilization, borderColor: '#1f77b4', tension: 0.3, borderWidth: 2, fill: false }
+    ]
+  };
+  document.getElementById('kpiCapacityUtilization').textContent = `${capacityUtilization.reduce((a,b)=>a+b,0)/capacityUtilization.length.toFixed(1)}%`;
+  createChart('chartProductionEfficiency', 'line', prodEffData, { plugins: { legend: { position: 'top' } }, scales: { y: { ticks: { callback: v => `${v.toFixed(1)}%` } } } }, 'chart-container line-goal-chart');
+
+  // Entrega no Prazo e Ciclo
+  const onTimeDeliveryData = {
+    labels: labelsMesLong,
+    datasets: [{ label: 'Entrega no Prazo (%)', data: onTimeDelivery, borderColor: 'var(--brand)', tension: 0.3, borderWidth: 2, fill: false }]
+  };
+  createChart('chartOnTimeDelivery', 'line', onTimeDeliveryData, { plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: v => `${v.toFixed(1)}%` } } } });
+
+  const orderCycleTimeData = {
+    labels: labelsMesLong,
+    datasets: [{ label: 'Dias', data: orderCycleTime, borderColor: '#ff7f0e', tension: 0.3, borderWidth: 2 }]
+  };
+  document.getElementById('kpiAvgOrderCycleTime').textContent = `${avgOrderCycleTime.toFixed(1)} dias`;
+  createChart('chartOrderCycleTime', 'line', orderCycleTimeData, { plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: v => `${v.toFixed(1)} dias` } } } });
+
+  // Estoque e Qualidade
+  const inventoryTurnoverData = {
+    labels: labelsMesLong,
+    datasets: [{ label: 'Vezes/Ano', data: inventoryTurnover, borderColor: '#17becf', tension: 0.3, borderWidth: 2, fill: false }]
+  };
+  createChart('chartInventoryTurnover', 'line', inventoryTurnoverData, { plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: v => `${v.toFixed(1)}x` } } } });
+
+  const defectRateData = {
+    labels: labelsMesLong,
+    datasets: [{ label: 'Taxa (%)', data: defectRate, borderColor: 'var(--bad)', tension: 0.3, borderWidth: 2, fill: false }]
+  };
+  document.getElementById('kpiDefectRate').textContent = `${avgDefectRate.toFixed(1)}%`;
+  createChart('chartDefectRate', 'line', defectRateData, { plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: v => `${v.toFixed(1)}%` } } } });
+
+  // Suporte ao Cliente
+  const supportResolutionTimeData = {
+    labels: labelsMesLong,
+    datasets: [{ label: 'Horas', data: supportResolutionTime, borderColor: '#9467bd', tension: 0.3, borderWidth: 2 }]
+  };
+  document.getElementById('kpiAvgResolutionTime').textContent = `${avgResolutionTime.toFixed(1)} horas`;
+  createChart('chartSupportResolutionTime', 'line', supportResolutionTimeData, { plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: v => `${v.toFixed(1)}h` } } } });
+
+
+  // ================== NAVEGAÇÃO ENTRE ABAS ==================
+  const views = {
+    dash_geral:'v-dash-geral',
+    dash_vendas:'v-dash-vendas',
+    dash_financeiro:'v-dash-financeiro',
+    dash_clientes:'v-dash-clientes',
+    dash_operacoes:'v-dash-operacoes'
+  };
+  const titulo = document.getElementById('titulo');
+
+  // Adiciona evento de clique a cada botão de aba
+  document.querySelectorAll('.tab').forEach(t=>{
+    t.addEventListener('click',()=>{
+      // Remove a seleção de todas as abas
+      document.querySelectorAll('.tab').forEach(x=>x.setAttribute('aria-selected','false'));
+      // Marca a aba clicada como selecionada
+      t.setAttribute('aria-selected','true');
+
+      const key = t.dataset.tab; // Pega o identificador da aba clicada
+
+      // Esconde todas as seções de visualização
+      Object.values(views).forEach(id => {
+          const section = document.getElementById(id);
+          if (section) section.hidden = true;
+      });
+
+      // Mostra a seção correspondente à aba clicada
+      const sectionToShow = document.getElementById(views[key]);
+      if (sectionToShow) {
+          sectionToShow.hidden = false;
+      } else {
+          console.error(`Seção de visualização com ID '${views[key]}' não encontrada.`);
+      }
+
+      // Atualiza o título principal da página
+      titulo.textContent = t.textContent;
+
+      // Força o redimensionamento para garantir que os gráficos sejam renderizados corretamente
+      // Isso é crucial para gráficos em abas que podem estar ocultas inicialmente.
+      setTimeout(() => {
+          window.dispatchEvent(new Event('resize'));
+      }, 100); // Pequeno delay para permitir que o DOM seja atualizado antes do redimensionamento
+    });
+  });
+});
+</script>
+</body>
+</html>
